@@ -26,7 +26,7 @@ class IpmiCode(Enum):
 class IpmiConn():
     def __init__(self, mmc_addr, mch_url, ipmitool_mode=False):
         if ipmitool_mode:
-            self.interface = pyipmi.interfaces.create_interface('ipmitool', interface_type='lan', keep_alive_interval=0)
+            self.interface = pyipmi.interfaces.create_interface('ipmitool', interface_type='lan')
         else:
             self.interface = pyipmi.interfaces.create_interface('rmcp', keep_alive_interval=0)
         self.conn = self.mtca_mch_bridge_amc(mch_url, mmc_addr)
