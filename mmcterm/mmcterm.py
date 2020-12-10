@@ -337,29 +337,41 @@ class MMCterm(object):
         self.transmitter_thread.join()
         self.receiver_thread.join()
 
+    def reader_abort(self, msg):
+        self.console.write(msg)
+        self.alive = False
+        self.console.cancel()
+
     def reader(self):
         '''
         IPMI communication thread
         send input from console to MMC "stdin", return MMC "stdout" data to print on the console
         '''
-        rx_data = b' '
+        rx_data = b''
         while self.alive and self._reader_alive:
             tx_data = b''
+
+            # Check for user input from console
             with self.queue_lock:
                 if len(self.console_queue):
                     tx_data = self.console_queue
                     self.console_queue = []
+
             if len(tx_data) == 0 and len(rx_data) == 0:
                 # Don't flood the MCH with polling, if there's probably no data to exchange
-                time.sleep(0.05)
+                time.sleep(0.01)
+
             # write user input to MMC, fetch MMC output to print
-            status, rx_data = self.ipmi.poll_xchg(bytearray(tx_data))
+            try:
+                status, rx_data = self.ipmi.poll_xchg(bytearray(tx_data))
+            except Exception as e:
+                self.reader_abort(f'pyipmi exception: {e}')
+                return
+
             if len(rx_data):
                 self.console.write_bytes(rx_data)
             if status != 0:
-                self.console.write(f'Status error: {status:02x}')
-                self.alive = False
-                self.console.cancel()
+                self.reader_abort(f'Status error: {status:02x}')
 
     def writer(self):
         '''
