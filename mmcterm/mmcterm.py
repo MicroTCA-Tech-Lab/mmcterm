@@ -89,7 +89,11 @@ class IpmiConn():
         channels = []
         ch_idx = 0
         while True:
-            status, reply = self.raw_cmd(IpmiCode.SOI_CHANNEL_INFO, ch_idx)
+            try:
+                status, reply = self.raw_cmd(IpmiCode.SOI_CHANNEL_INFO, ch_idx)
+            except Exception:
+                # "out of range" error makes ipmitool backend throw an exception
+                break
             if status != 0:
                 break
             reply = reply.decode('utf-8')
