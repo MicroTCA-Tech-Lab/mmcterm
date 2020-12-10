@@ -5,6 +5,7 @@
 
 import setuptools
 from pathlib import Path as path
+from mmcterm import __version__
 
 readme_contents = path('./README.md').read_text()
 requirements = path('./requirements.txt').read_text().splitlines()
@@ -12,10 +13,10 @@ packages=setuptools.find_packages(include=['mmcterm'])
 
 setuptools.setup(
     name='mmcterm',
-    version='0.0.1',
+    version=__version__,
     author='Patrick Huesmann',
     author_email='patrick.huesmann@desy.de',
-    url='https://msktechvcs.desy.de/techlab/mmc/mmcterm',
+    url='https://techlab.desy.de',
     license='BSD',
     description='Serial over IPMB terminal for DESY MMCs',
     long_description=readme_contents,

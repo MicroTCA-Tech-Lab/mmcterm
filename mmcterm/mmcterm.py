@@ -16,6 +16,7 @@ import argparse
 import logging
 import time
 from enum import Enum
+from .__init__ import __version__
 
 class IpmiCode(Enum):
     SOI_CHANNEL_INFO = 0xf0
@@ -396,6 +397,10 @@ def main():
     parser.add_argument('mmc_addr',
                         type=lambda x: int(x,0),
                         help='IPMB-L address of MMC'
+    )
+    parser.add_argument('-v', '--version',
+                        action='version',
+                        version='%(prog)s ' + __version__
     )
     parser.add_argument('-c', '--channel',
                         type=int,
