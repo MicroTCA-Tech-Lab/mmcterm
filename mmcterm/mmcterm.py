@@ -421,7 +421,7 @@ def main():
     parser.add_argument('-c', '--channel',
                         type=int,
                         default=0,
-                        help='console channel'
+                        help='console channel (default 0)'
     )
     parser.add_argument('-l', '--list',
                         action='store_true',
