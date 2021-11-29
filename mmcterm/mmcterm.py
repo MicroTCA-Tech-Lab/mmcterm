@@ -1,11 +1,20 @@
-# SPDX-License-Identifier: BSD-3-Clause
-# Copyright (c) 2020 Deutsches Elektronen-Synchrotron DESY.
-# See LICENSE.txt for license details.
+###########################################################################
+#      ____  _____________  __    __  __ _           _____ ___   _        #
+#     / __ \/ ____/ ___/\ \/ /   |  \/  (_)__ _ _ __|_   _/ __| /_\  (R)  #
+#    / / / / __/  \__ \  \  /    | |\/| | / _| '_/ _ \| || (__ / _ \      #
+#   / /_/ / /___ ___/ /  / /     |_|  |_|_\__|_| \___/|_| \___/_/ \_\     #
+#  /_____/_____//____/  /_/      T  E  C  H  N  O  L  O  G  Y   L A B     #
+#                                                                         #
+#          Copyright 2021 Deutsches Elektronen-Synchrotron DESY.          #
+#                  SPDX-License-Identifier: BSD-3-Clause                  #
+#                                                                         #
+###########################################################################
 #
 # Terminal for the custom "serial over IPMB" protocol used by DESY MMC
-# 
+#
 # Based on pyserial miniterm, https://github.com/pyserial/pyserial/blob/master/serial/tools/miniterm.py
 # (C)2002-2020 Chris Liechti <cliechti@gmx.net>
+#
 
 import os
 import sys
@@ -18,17 +27,21 @@ import time
 from enum import Enum
 from .__init__ import __version__
 
+
 class IpmiCode(Enum):
     SOI_CHANNEL_INFO = 0xf0
     SOI_SESSION_CTRL = 0xf1
     SOI_POLL_XCHG = 0xf2
 
+
 class IpmiConn():
     def __init__(self, mmc_addr, mch_url, ipmitool_mode=False):
         if ipmitool_mode:
-            self.interface = pyipmi.interfaces.create_interface('ipmitool', interface_type='lan')
+            self.interface = pyipmi.interfaces.create_interface(
+                'ipmitool', interface_type='lan')
         else:
-            self.interface = pyipmi.interfaces.create_interface('rmcp', keep_alive_interval=0)
+            self.interface = pyipmi.interfaces.create_interface(
+                'rmcp', keep_alive_interval=0)
         self.conn = self.mtca_mch_bridge_amc(mch_url, mmc_addr)
 
     '''
@@ -50,13 +63,14 @@ class IpmiConn():
                     `-------------------´             `--------´
         `------------´     `---´        `---------------´
     '''
+
     def mtca_mch_bridge_amc(self, mch_url: str, amc_mmc_addr: int):
         '''
         Create a "double bridge" IPMI connection to talk directly to a AMC
         '''
         mtca_amc_double_bridge = [(0x81, 0x20, 0),
-                                 (0x20, 0x82, 7),
-                                 (0x20, amc_mmc_addr, None)]
+                                  (0x20, 0x82, 7),
+                                  (0x20, amc_mmc_addr, None)]
 
         conn = pyipmi.create_connection(self.interface)
         conn.session.set_session_type_rmcp(mch_url)
@@ -81,7 +95,7 @@ class IpmiConn():
 
         raw_reply = self.conn.raw_command(0, 0x30, data)
         return raw_reply[0], raw_reply[1:]
-    
+
     def channel_list(self):
         '''
         Retrieve list of available "serial over IPMB" channels
@@ -111,7 +125,7 @@ class IpmiConn():
         if status != 0:
             print(f'session_ctrl returned 0x{status:02x}')
         return status == 0
-    
+
     def poll_xchg(self, tx_data):
         '''
         Poll / exchange "serial over IPMB" data
@@ -119,9 +133,12 @@ class IpmiConn():
         # Assuming tx_data is not longer than one max. TX packet (if that happens, we have to implement splitting)
         return self.raw_cmd(IpmiCode.SOI_POLL_XCHG, tx_data)
 
+
 '''
 Console code based on pyserial/miniterm
 '''
+
+
 class ConsoleBase(object):
     """OS abstraction for console (input/output codec, no echo)"""
 
@@ -203,21 +220,21 @@ if os.name == 'nt':  # noqa
             'R': '\x1b[2~',  # INSERT
             'S': '\x1b[3~',  # DELETE
             'I': '\x1b[5~',  # PGUP
-            'Q': '\x1b[6~',  # PGDN        
+            'Q': '\x1b[6~',  # PGDN
         }
-        
+
         def __init__(self):
             super(Console, self).__init__()
             self._saved_ocp = ctypes.windll.kernel32.GetConsoleOutputCP()
             self._saved_icp = ctypes.windll.kernel32.GetConsoleCP()
             ctypes.windll.kernel32.SetConsoleOutputCP(65001)
             ctypes.windll.kernel32.SetConsoleCP(65001)
-            # ANSI handling available through SetConsoleMode since Windows 10 v1511 
+            # ANSI handling available through SetConsoleMode since Windows 10 v1511
             # https://en.wikipedia.org/wiki/ANSI_escape_code#cite_note-win10th2-1
             if platform.release() == '10' and int(platform.version().split('.')[2]) > 10586:
                 ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
                 import ctypes.wintypes as wintypes
-                if not hasattr(wintypes, 'LPDWORD'): # PY2
+                if not hasattr(wintypes, 'LPDWORD'):  # PY2
                     wintypes.LPDWORD = ctypes.POINTER(wintypes.DWORD)
                 SetConsoleMode = ctypes.windll.kernel32.SetConsoleMode
                 GetConsoleMode = ctypes.windll.kernel32.GetConsoleMode
@@ -225,11 +242,14 @@ if os.name == 'nt':  # noqa
                 mode = wintypes.DWORD()
                 GetConsoleMode(GetStdHandle(-11), ctypes.byref(mode))
                 if (mode.value & ENABLE_VIRTUAL_TERMINAL_PROCESSING) == 0:
-                    SetConsoleMode(GetStdHandle(-11), mode.value | ENABLE_VIRTUAL_TERMINAL_PROCESSING)
+                    SetConsoleMode(GetStdHandle(-11), mode.value |
+                                   ENABLE_VIRTUAL_TERMINAL_PROCESSING)
                     self._saved_cm = mode
-            self.output = Out(sys.stdout.fileno()) # codecs.getwriter('UTF-8')(Out(sys.stdout.fileno()), 'replace')
+            # codecs.getwriter('UTF-8')(Out(sys.stdout.fileno()), 'replace')
+            self.output = Out(sys.stdout.fileno())
             # the change of the code page is not propagated to Python, manually fix it
-            sys.stderr = Out(sys.stderr.fileno()) # codecs.getwriter('UTF-8')(Out(sys.stderr.fileno()), 'replace')
+            # codecs.getwriter('UTF-8')(Out(sys.stderr.fileno()), 'replace')
+            sys.stderr = Out(sys.stderr.fileno())
             sys.stdout = self.output
             self.output.encoding = 'UTF-8'  # needed for input
 
@@ -237,8 +257,9 @@ if os.name == 'nt':  # noqa
             ctypes.windll.kernel32.SetConsoleOutputCP(self._saved_ocp)
             ctypes.windll.kernel32.SetConsoleCP(self._saved_icp)
             try:
-                ctypes.windll.kernel32.SetConsoleMode(ctypes.windll.kernel32.GetStdHandle(-11), self._saved_cm)
-            except AttributeError: # in case no _saved_cm
+                ctypes.windll.kernel32.SetConsoleMode(
+                    ctypes.windll.kernel32.GetStdHandle(-11), self._saved_cm)
+            except AttributeError:  # in case no _saved_cm
                 pass
 
         def getkey(self):
@@ -300,6 +321,7 @@ else:
     raise NotImplementedError(
         'Sorry no implementation for your platform ({}) available.'.format(sys.platform))
 
+
 class MMCterm(object):
     def __init__(self, ipmi_conn):
         self.console = Console()
@@ -327,7 +349,8 @@ class MMCterm(object):
         """start worker threads"""
         self.alive = True
         self._start_reader()
-        self.transmitter_thread = threading.Thread(target=self.writer, name='tx')
+        self.transmitter_thread = threading.Thread(
+            target=self.writer, name='tx')
         self.transmitter_thread.daemon = True
         self.transmitter_thread.start()
         self.console.setup()
@@ -395,52 +418,53 @@ class MMCterm(object):
                     break
                 else:
                     with self.queue_lock:
-                        self.console_queue += c.replace('\n', '\r').encode('utf-8')
+                        self.console_queue += c.replace('\n',
+                                                        '\r').encode('utf-8')
         except:
             self.alive = False
             raise
 
 
 def main():
-# example: ./mmcterm.py 0x74 -m 192.168.1.252
+    # example: ./mmcterm.py 0x74 -m 192.168.1.252
     parser = argparse.ArgumentParser(
         description='DESY MMC Serial over IPMB console'
     )
     parser.add_argument('mch_addr',
                         type=str,
                         help='IP address or hostname of MCH'
-    )
+                        )
     parser.add_argument('mmc_addr',
-                        type=lambda x: int(x,0),
+                        type=lambda x: int(x, 0),
                         help='IPMB-L address of MMC'
-    )
+                        )
     parser.add_argument('-v', '--version',
                         action='version',
                         version='%(prog)s ' + __version__
-    )
+                        )
     parser.add_argument('-c', '--channel',
                         type=int,
                         default=0,
                         help='console channel (default 0)'
-    )
+                        )
     parser.add_argument('-l', '--list',
                         action='store_true',
                         help='list available channels'
-    )
+                        )
     parser.add_argument('-d', '--debug',
                         action='store_true',
                         help='pyipmi debug mode'
-    )
+                        )
     parser.add_argument('-i', '--ipmitool',
                         action='store_true',
                         help='make pyipmi use ipmitool instead of native rmcp'
-    )
+                        )
     args = parser.parse_args()
 
     if args.debug:
         pyipmi.logger.set_log_level(logging.DEBUG)
         pyipmi.logger.add_log_handler(logging.StreamHandler())
-    
+
     conn = IpmiConn(args.mmc_addr, args.mch_addr, ipmitool_mode=args.ipmitool)
 
     if args.list:
@@ -468,6 +492,7 @@ def main():
     mmcterm.join()
 
     conn.session_ctrl(args.channel, False)
+
 
 if __name__ == '__main__':
     main()
