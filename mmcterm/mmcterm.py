@@ -27,6 +27,9 @@ import time
 from enum import Enum
 from .__init__ import __version__
 
+# 32 byte max IPMB frame length minus headers etc.
+IPMB_MAX_PAYLOAD_LEN = 25
+
 
 class IpmiCode(Enum):
     SOI_CHANNEL_INFO = 0xf0
@@ -388,17 +391,22 @@ class MMCterm(object):
                 # Don't flood the MCH with polling, if there's probably no data to exchange
                 time.sleep(0.01)
 
-            # write user input to MMC, fetch MMC output to print
-            try:
-                status, rx_data = self.ipmi.poll_xchg(bytearray(tx_data))
-            except Exception as e:
-                self.reader_abort(f'pyipmi exception: {e}')
-                return
+            while True:
+                tx_part, tx_data = tx_data[:IPMB_MAX_PAYLOAD_LEN], tx_data[IPMB_MAX_PAYLOAD_LEN:]
+                # write user input to MMC, fetch MMC output to print
+                try:
+                    status, rx_data = self.ipmi.poll_xchg(bytearray(tx_part))
+                except Exception as e:
+                    self.reader_abort(f'pyipmi exception: {e}')
+                    return
 
-            if len(rx_data):
-                self.console.write_bytes(rx_data)
-            if status != 0:
-                self.reader_abort(f'Status error: {status:02x}')
+                if len(rx_data):
+                    self.console.write_bytes(rx_data)
+                if status != 0:
+                    self.reader_abort(f'Status error: {status:02x}')
+
+                if len(tx_data) == 0:
+                    break
 
     def writer(self):
         '''
