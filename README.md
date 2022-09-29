@@ -60,10 +60,11 @@ NetFn 0x30, Command 0xf1
 
 Request:
 
-| Byte    | Contents            |
-|---------|---------------------|
-| 0       | Channel Number      |
-| 1       | 1 = start, 0 = stop |
+| Byte    | Contents                   |
+|---------|----------------------------|
+| 0       | Channel Number             |
+| 1       | 1 = start, 0 = stop        |
+| 2       | Max packet size (optional) |
 
 ### Poll/exchange data
 

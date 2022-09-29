@@ -29,6 +29,7 @@ from .__init__ import __version__
 
 # 32 byte max IPMB frame length minus headers etc.
 IPMB_MAX_PAYLOAD_LEN = 25
+IPMB_HEADER_LEN = 7
 
 
 class IpmiCode(Enum):
@@ -118,13 +119,14 @@ class IpmiConn():
             ch_idx += 1
         return channels
 
-    def session_ctrl(self, channel, enable):
+    def session_ctrl(self, channel, enable, max_pkt_size=None):
         '''
         Open / close "serial over IPMB" session
         '''
         channel = int.to_bytes(channel, 1, byteorder='big')
         enable = b'\x01' if enable else b'\x00'
-        status, _ = self.raw_cmd(IpmiCode.SOI_SESSION_CTRL, channel + enable)
+        max_pkt_b = int.to_bytes(max_pkt_size, 1, byteorder='big') if max_pkt_size is not None else b''
+        status, _ = self.raw_cmd(IpmiCode.SOI_SESSION_CTRL, channel + enable + max_pkt_b)
         if status != 0:
             print(f'session_ctrl returned 0x{status:02x}')
         return status == 0
@@ -326,7 +328,7 @@ else:
 
 
 class MMCterm(object):
-    def __init__(self, ipmi_conn):
+    def __init__(self, ipmi_conn, max_pkt_size, polling_interval):
         self.console = Console()
         self.ipmi = ipmi_conn
         self.exit_character = chr(0x18)  # ctrl-x
@@ -335,6 +337,13 @@ class MMCterm(object):
         self.receiver_thread = None
         self.console_queue = []
         self.queue_lock = threading.Lock()
+        max_pkt_size = max_pkt_size or 32
+        self.polling_interval = polling_interval or 10
+        self.polling_interval /= 1000
+        print(self.polling_interval)
+        self.max_payload_len = max_pkt_size - IPMB_HEADER_LEN
+        self.max_payload_len = max(self.max_payload_len, 1)
+        print(f'max pl {self.max_payload_len}')
 
     def _start_reader(self):
         """Start reader thread"""
@@ -389,7 +398,7 @@ class MMCterm(object):
 
             if len(tx_data) == 0 and len(rx_data) == 0:
                 # Don't flood the MCH with polling, if there's probably no data to exchange
-                time.sleep(0.01)
+                time.sleep(self.polling_interval)
 
             while True:
                 tx_part, tx_data = tx_data[:IPMB_MAX_PAYLOAD_LEN], tx_data[IPMB_MAX_PAYLOAD_LEN:]
@@ -455,6 +464,11 @@ def main():
                         default=0,
                         help='console channel (default 0)'
                         )
+    parser.add_argument('-t', '--interval',
+                        type=int,
+                        default=10,
+                        help='polling interval in ms (default 10)'
+                        )
     parser.add_argument('-l', '--list',
                         action='store_true',
                         help='list available channels'
@@ -466,6 +480,11 @@ def main():
     parser.add_argument('-i', '--ipmitool',
                         action='store_true',
                         help='make pyipmi use ipmitool instead of native rmcp'
+                        )
+    parser.add_argument('-m', '--max-pkt-size',
+                        type=int,
+                        help='max IPMB packet size to use'
+                        ' (Higher numbers give better performance, but can break depending on MCH model)'
                         )
     args = parser.parse_args()
 
@@ -485,11 +504,11 @@ def main():
             print(f'channel {l[0]}: {l[1]}')
         sys.exit(0)
 
-    if not conn.session_ctrl(args.channel, True):
+    if not conn.session_ctrl(args.channel, True, args.max_pkt_size):
         print(f'Could not open session for channel {args.channel}')
         sys.exit(-1)
 
-    mmcterm = MMCterm(conn)
+    mmcterm = MMCterm(conn, args.max_pkt_size, args.interval)
 
     print("Press Ctrl-x to exit")
     mmcterm.start()
