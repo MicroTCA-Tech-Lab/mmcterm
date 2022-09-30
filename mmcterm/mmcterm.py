@@ -334,6 +334,8 @@ else:
 
 
 class MMCterm(object):
+    STATUS_ERROR_RETRIES = 10
+
     def __init__(self, ipmi_conn, max_pkt_size, polling_interval):
         self.console = Console()
         self.ipmi = ipmi_conn
@@ -350,6 +352,7 @@ class MMCterm(object):
         self.max_payload_len = max_pkt_size - IPMB_HEADER_LEN
         self.max_payload_len = max(self.max_payload_len, 1)
         print(f'max pl {self.max_payload_len}')
+        self.retries = MMCterm.STATUS_ERROR_RETRIES
 
     def _start_reader(self):
         """Start reader thread"""
@@ -418,7 +421,15 @@ class MMCterm(object):
                 if len(rx_data):
                     self.console.write_bytes(rx_data)
                 if status != 0:
-                    self.reader_abort(f'Status error: {status:02x}')
+                    self.retries -= 1
+                    # NAT MCH sometimes sends 0xd3 ("Destination unavailable")
+                    # Ignore it and retry if it doesn't happen N times in a row
+                    if status != 0xd3 or not self.retries:
+                        self.reader_abort(
+                            f'Status error: {status:02x}, giving up')
+
+                else:
+                    self.retries = MMCterm.STATUS_ERROR_RETRIES
 
                 if len(tx_data) == 0:
                     break
