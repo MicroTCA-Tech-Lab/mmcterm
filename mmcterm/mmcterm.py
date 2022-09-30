@@ -21,6 +21,7 @@ import sys
 import threading
 import pyipmi
 import pyipmi.interfaces
+import pyipmi.errors
 import argparse
 import logging
 import time
@@ -49,7 +50,8 @@ class IpmiConn():
         self.conn = self.mtca_mch_bridge_amc(mch_url, mmc_addr)
 
     def __del__(self):
-        self.conn.session.close()
+        if hasattr(self, 'conn') and self.conn.session and self.conn.session.activated:
+            self.conn.session.close()
 
     '''
         From https://github.com/kontron/python-ipmi/blob/master/pyipmi/__init__.py#L111
@@ -83,7 +85,11 @@ class IpmiConn():
         conn.session.set_session_type_rmcp(mch_url)
         conn.session.set_auth_type_user('', '')
         conn.interface.set_timeout(0.25)
-        conn.session.establish()
+        try:
+            conn.session.establish()
+        except Exception as e:
+            raise RuntimeError(f'Couldn\'t connect to MCH {mch_url}: {e}')
+
         conn.target = pyipmi.Target(
             ipmb_address=amc_mmc_addr,
             routing=mtca_amc_double_bridge
@@ -134,7 +140,8 @@ class IpmiConn():
         status, _ = self.raw_cmd(
             IpmiCode.SOI_SESSION_CTRL, channel + enable + max_pkt_b)
         if status != 0:
-            print(f'session_ctrl returned 0x{status:02x}')
+            err = pyipmi.errors.CompletionCodeError(status)
+            print(f'session_ctrl: 0x{status:02x} ({err.cc_desc})')
         return status == 0
 
     def poll_xchg(self, tx_data):
@@ -507,7 +514,12 @@ def main():
         pyipmi.logger.set_log_level(logging.DEBUG)
         pyipmi.logger.add_log_handler(logging.StreamHandler())
 
-    conn = IpmiConn(args.mmc_addr, args.mch_addr, ipmitool_mode=args.ipmitool)
+    try:
+        conn = IpmiConn(args.mmc_addr, args.mch_addr,
+                        ipmitool_mode=args.ipmitool)
+    except Exception as e:
+        print(e)
+        sys.exit(1)
 
     if args.list:
         lst = conn.channel_list()
