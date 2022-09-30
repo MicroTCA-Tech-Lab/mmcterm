@@ -348,10 +348,8 @@ class MMCterm(object):
         max_pkt_size = max_pkt_size or 32
         self.polling_interval = polling_interval or 10
         self.polling_interval /= 1000
-        print(self.polling_interval)
         self.max_payload_len = max_pkt_size - IPMB_HEADER_LEN
         self.max_payload_len = max(self.max_payload_len, 1)
-        print(f'max pl {self.max_payload_len}')
         self.retries = MMCterm.STATUS_ERROR_RETRIES
 
     def _start_reader(self):
