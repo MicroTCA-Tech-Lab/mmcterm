@@ -48,6 +48,9 @@ class IpmiConn():
                 'rmcp', keep_alive_interval=0)
         self.conn = self.mtca_mch_bridge_amc(mch_url, mmc_addr)
 
+    def __del__(self):
+        self.conn.session.close()
+
     '''
         From https://github.com/kontron/python-ipmi/blob/master/pyipmi/__init__.py#L111
 
@@ -79,6 +82,7 @@ class IpmiConn():
         conn = pyipmi.create_connection(self.interface)
         conn.session.set_session_type_rmcp(mch_url)
         conn.session.set_auth_type_user('', '')
+        conn.interface.set_timeout(0.25)
         conn.session.establish()
         conn.target = pyipmi.Target(
             ipmb_address=amc_mmc_addr,
@@ -125,8 +129,10 @@ class IpmiConn():
         '''
         channel = int.to_bytes(channel, 1, byteorder='big')
         enable = b'\x01' if enable else b'\x00'
-        max_pkt_b = int.to_bytes(max_pkt_size, 1, byteorder='big') if max_pkt_size is not None else b''
-        status, _ = self.raw_cmd(IpmiCode.SOI_SESSION_CTRL, channel + enable + max_pkt_b)
+        max_pkt_b = int.to_bytes(
+            max_pkt_size, 1, byteorder='big') if max_pkt_size is not None else b''
+        status, _ = self.raw_cmd(
+            IpmiCode.SOI_SESSION_CTRL, channel + enable + max_pkt_b)
         if status != 0:
             print(f'session_ctrl returned 0x{status:02x}')
         return status == 0
