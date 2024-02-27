@@ -17,7 +17,7 @@ DESY MMC Serial over IPMB console
 
 positional arguments:
   mch_addr              IP address or hostname of MCH
-  mmc_addr              IPMB-L address of MMC
+  mmc_addr              IPMB-L address of MMC or "AMCn" (n=1..12)
 
 optional arguments:
   -h, --help            show this help message and exit
