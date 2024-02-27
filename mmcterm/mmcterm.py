@@ -474,8 +474,8 @@ def main():
                         help='IP address or hostname of MCH'
                         )
     parser.add_argument('mmc_addr',
-                        type=lambda x: int(x, 0),
-                        help='IPMB-L address of MMC'
+                        type=lambda s: 0x70 + 2*int(s[3:], 0) if s.find("AMC") == 0 else int(s, 0),
+                        help='IPMB-L address of MMC or "AMCn" (n=1..12)'
                         )
     parser.add_argument('-v', '--version',
                         action='version',
