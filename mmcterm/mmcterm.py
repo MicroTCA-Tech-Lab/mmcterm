@@ -84,7 +84,9 @@ class IpmiConn():
         conn = pyipmi.create_connection(self.interface)
         conn.session.set_session_type_rmcp(mch_url)
         conn.session.set_auth_type_user('', '')
-        conn.interface.set_timeout(0.25)
+        if self.interface.NAME == 'rmcp':
+            # only rmcp interface supports setting timeout
+            conn.interface.set_timeout(0.25)
         try:
             conn.session.establish()
         except Exception as e:
