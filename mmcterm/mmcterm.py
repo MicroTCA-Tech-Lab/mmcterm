@@ -34,26 +34,28 @@ IPMB_HEADER_LEN = 7
 
 
 class IpmiCode(Enum):
-    SOI_CHANNEL_INFO = 0xf0
-    SOI_SESSION_CTRL = 0xf1
-    SOI_POLL_XCHG = 0xf2
+    SOI_CHANNEL_INFO = 0xF0
+    SOI_SESSION_CTRL = 0xF1
+    SOI_POLL_XCHG = 0xF2
 
 
-class IpmiConn():
+class IpmiConn:
     def __init__(self, mmc_addr, mch_url, ipmitool_mode=False):
         if ipmitool_mode:
             self.interface = pyipmi.interfaces.create_interface(
-                'ipmitool', interface_type='lan')
+                "ipmitool", interface_type="lan"
+            )
         else:
             self.interface = pyipmi.interfaces.create_interface(
-                'rmcp', keep_alive_interval=0)
+                "rmcp", keep_alive_interval=0
+            )
         self.conn = self.mtca_mch_bridge_amc(mch_url, mmc_addr)
 
     def __del__(self):
-        if hasattr(self, 'conn') and self.conn.session and self.conn.session.activated:
+        if hasattr(self, "conn") and self.conn.session and self.conn.session.activated:
             self.conn.session.close()
 
-    '''
+    """
         From https://github.com/kontron/python-ipmi/blob/master/pyipmi/__init__.py#L111
 
         Example #2: access to an AMC in a uTCA chassis
@@ -71,41 +73,42 @@ class IpmiConn():
                     |       `-----------|             |        |
                     `-------------------´             `--------´
         `------------´     `---´        `---------------´
-    '''
+    """
 
     def mtca_mch_bridge_amc(self, mch_url: str, amc_mmc_addr: int):
-        '''
+        """
         Create a "double bridge" IPMI connection to talk directly to a AMC
-        '''
-        mtca_amc_double_bridge = [(0x81, 0x20, 0),
-                                  (0x20, 0x82, 7),
-                                  (0x20, amc_mmc_addr, None)]
+        """
+        mtca_amc_double_bridge = [
+            (0x81, 0x20, 0),
+            (0x20, 0x82, 7),
+            (0x20, amc_mmc_addr, None),
+        ]
 
         conn = pyipmi.create_connection(self.interface)
         conn.session.set_session_type_rmcp(mch_url)
-        conn.session.set_auth_type_user('', '')
-        if self.interface.NAME == 'rmcp':
+        conn.session.set_auth_type_user("", "")
+        if self.interface.NAME == "rmcp":
             # only rmcp interface supports setting timeout
             conn.interface.set_timeout(0.25)
         try:
             conn.session.establish()
         except Exception as e:
-            raise RuntimeError(f'Couldn\'t connect to MCH {mch_url}: {e}')
+            raise RuntimeError(f"Couldn't connect to MCH {mch_url}: {e}")
 
         conn.target = pyipmi.Target(
-            ipmb_address=amc_mmc_addr,
-            routing=mtca_amc_double_bridge
+            ipmb_address=amc_mmc_addr, routing=mtca_amc_double_bridge
         )
         return conn
 
     def raw_cmd(self, cmd_code, cmd_data=None):
-        '''
+        """
         Send IPMI raw command to the MMC
-        '''
-        data = int.to_bytes(cmd_code.value, 1, byteorder='big')
+        """
+        data = int.to_bytes(cmd_code.value, 1, byteorder="big")
         if cmd_data is not None:
             if isinstance(cmd_data, int):
-                data += int.to_bytes(cmd_data, 1, byteorder='big')
+                data += int.to_bytes(cmd_data, 1, byteorder="big")
             else:
                 data += cmd_data
 
@@ -113,9 +116,9 @@ class IpmiConn():
         return raw_reply[0], raw_reply[1:]
 
     def channel_list(self):
-        '''
+        """
         Retrieve list of available "serial over IPMB" channels
-        '''
+        """
         channels = []
         ch_idx = 0
         while True:
@@ -126,37 +129,41 @@ class IpmiConn():
                 break
             if status != 0:
                 break
-            reply = reply.decode('utf-8')
+            reply = reply.decode("utf-8")
             channels.append((ch_idx, reply))
             ch_idx += 1
         return channels
 
     def session_ctrl(self, channel, enable, max_pkt_size=None):
-        '''
+        """
         Open / close "serial over IPMB" session
-        '''
-        channel = int.to_bytes(channel, 1, byteorder='big')
-        enable = b'\x01' if enable else b'\x00'
-        max_pkt_b = int.to_bytes(
-            max_pkt_size, 1, byteorder='big') if max_pkt_size is not None else b''
+        """
+        channel = int.to_bytes(channel, 1, byteorder="big")
+        enable = b"\x01" if enable else b"\x00"
+        max_pkt_b = (
+            int.to_bytes(max_pkt_size, 1, byteorder="big")
+            if max_pkt_size is not None
+            else b""
+        )
         status, _ = self.raw_cmd(
-            IpmiCode.SOI_SESSION_CTRL, channel + enable + max_pkt_b)
+            IpmiCode.SOI_SESSION_CTRL, channel + enable + max_pkt_b
+        )
         if status != 0:
             err = pyipmi.errors.CompletionCodeError(status)
-            print(f'session_ctrl: 0x{status:02x} ({err.cc_desc})')
+            print(f"session_ctrl: 0x{status:02x} ({err.cc_desc})")
         return status == 0
 
     def poll_xchg(self, tx_data):
-        '''
+        """
         Poll / exchange "serial over IPMB" data
-        '''
+        """
         # Assuming tx_data is not longer than one max. TX packet (if that happens, we have to implement splitting)
         return self.raw_cmd(IpmiCode.SOI_POLL_XCHG, tx_data)
 
 
-'''
+"""
 Console code based on pyserial/miniterm
-'''
+"""
 
 
 class ConsoleBase(object):
@@ -200,7 +207,7 @@ class ConsoleBase(object):
         self.setup()
 
 
-if os.name == 'nt':  # noqa
+if os.name == "nt":  # noqa
     import msvcrt
     import ctypes
     import platform
@@ -219,28 +226,28 @@ if os.name == 'nt':  # noqa
 
     class Console(ConsoleBase):
         fncodes = {
-            ';': '\1bOP',  # F1
-            '<': '\1bOQ',  # F2
-            '=': '\1bOR',  # F3
-            '>': '\1bOS',  # F4
-            '?': '\1b[15~',  # F5
-            '@': '\1b[17~',  # F6
-            'A': '\1b[18~',  # F7
-            'B': '\1b[19~',  # F8
-            'C': '\1b[20~',  # F9
-            'D': '\1b[21~',  # F10
+            ";": "\1bOP",  # F1
+            "<": "\1bOQ",  # F2
+            "=": "\1bOR",  # F3
+            ">": "\1bOS",  # F4
+            "?": "\1b[15~",  # F5
+            "@": "\1b[17~",  # F6
+            "A": "\1b[18~",  # F7
+            "B": "\1b[19~",  # F8
+            "C": "\1b[20~",  # F9
+            "D": "\1b[21~",  # F10
         }
         navcodes = {
-            'H': '\x1b[A',  # UP
-            'P': '\x1b[B',  # DOWN
-            'K': '\x1b[D',  # LEFT
-            'M': '\x1b[C',  # RIGHT
-            'G': '\x1b[H',  # HOME
-            'O': '\x1b[F',  # END
-            'R': '\x1b[2~',  # INSERT
-            'S': '\x1b[3~',  # DELETE
-            'I': '\x1b[5~',  # PGUP
-            'Q': '\x1b[6~',  # PGDN
+            "H": "\x1b[A",  # UP
+            "P": "\x1b[B",  # DOWN
+            "K": "\x1b[D",  # LEFT
+            "M": "\x1b[C",  # RIGHT
+            "G": "\x1b[H",  # HOME
+            "O": "\x1b[F",  # END
+            "R": "\x1b[2~",  # INSERT
+            "S": "\x1b[3~",  # DELETE
+            "I": "\x1b[5~",  # PGUP
+            "Q": "\x1b[6~",  # PGDN
         }
 
         def __init__(self):
@@ -251,10 +258,14 @@ if os.name == 'nt':  # noqa
             ctypes.windll.kernel32.SetConsoleCP(65001)
             # ANSI handling available through SetConsoleMode since Windows 10 v1511
             # https://en.wikipedia.org/wiki/ANSI_escape_code#cite_note-win10th2-1
-            if platform.release() == '10' and int(platform.version().split('.')[2]) > 10586:
+            if (
+                platform.release() == "10"
+                and int(platform.version().split(".")[2]) > 10586
+            ):
                 ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
                 import ctypes.wintypes as wintypes
-                if not hasattr(wintypes, 'LPDWORD'):  # PY2
+
+                if not hasattr(wintypes, "LPDWORD"):  # PY2
                     wintypes.LPDWORD = ctypes.POINTER(wintypes.DWORD)
                 SetConsoleMode = ctypes.windll.kernel32.SetConsoleMode
                 GetConsoleMode = ctypes.windll.kernel32.GetConsoleMode
@@ -262,8 +273,10 @@ if os.name == 'nt':  # noqa
                 mode = wintypes.DWORD()
                 GetConsoleMode(GetStdHandle(-11), ctypes.byref(mode))
                 if (mode.value & ENABLE_VIRTUAL_TERMINAL_PROCESSING) == 0:
-                    SetConsoleMode(GetStdHandle(-11), mode.value |
-                                   ENABLE_VIRTUAL_TERMINAL_PROCESSING)
+                    SetConsoleMode(
+                        GetStdHandle(-11),
+                        mode.value | ENABLE_VIRTUAL_TERMINAL_PROCESSING,
+                    )
                     self._saved_cm = mode
             # codecs.getwriter('UTF-8')(Out(sys.stdout.fileno()), 'replace')
             self.output = Out(sys.stdout.fileno())
@@ -271,14 +284,15 @@ if os.name == 'nt':  # noqa
             # codecs.getwriter('UTF-8')(Out(sys.stderr.fileno()), 'replace')
             sys.stderr = Out(sys.stderr.fileno())
             sys.stdout = self.output
-            self.output.encoding = 'UTF-8'  # needed for input
+            self.output.encoding = "UTF-8"  # needed for input
 
         def __del__(self):
             ctypes.windll.kernel32.SetConsoleOutputCP(self._saved_ocp)
             ctypes.windll.kernel32.SetConsoleCP(self._saved_icp)
             try:
                 ctypes.windll.kernel32.SetConsoleMode(
-                    ctypes.windll.kernel32.GetStdHandle(-11), self._saved_cm)
+                    ctypes.windll.kernel32.GetStdHandle(-11), self._saved_cm
+                )
             except AttributeError:  # in case no _saved_cm
                 pass
 
@@ -287,7 +301,7 @@ if os.name == 'nt':  # noqa
                 z = msvcrt.getwch()
                 if z == chr(13):
                     return chr(10)
-                elif z is chr(0) or z is chr(0xe0):
+                elif z is chr(0) or z is chr(0xE0):
                     try:
                         code = msvcrt.getwch()
                         if z is chr(0):
@@ -303,9 +317,9 @@ if os.name == 'nt':  # noqa
             # CancelIo, CancelSynchronousIo do not seem to work when using
             # getwch, so instead, send a key to the window with the console
             hwnd = ctypes.windll.kernel32.GetConsoleWindow()
-            ctypes.windll.user32.PostMessageA(hwnd, 0x100, 0x0d, 0)
+            ctypes.windll.user32.PostMessageA(hwnd, 0x100, 0x0D, 0)
 
-elif os.name == 'posix':
+elif os.name == "posix":
     import atexit
     import termios
     import fcntl
@@ -327,19 +341,20 @@ elif os.name == 'posix':
 
         def getkey(self):
             c = self.enc_stdin.read(1)
-            if c == chr(0x7f):
-                c = chr(8)    # map the BS key (which yields DEL) to backspace
+            if c == chr(0x7F):
+                c = chr(8)  # map the BS key (which yields DEL) to backspace
             return c
 
         def cancel(self):
-            fcntl.ioctl(self.fd, termios.TIOCSTI, b'\0')
+            fcntl.ioctl(self.fd, termios.TIOCSTI, b"\0")
 
         def cleanup(self):
             termios.tcsetattr(self.fd, termios.TCSAFLUSH, self.old)
 
 else:
     raise NotImplementedError(
-        'Sorry no implementation for your platform ({}) available.'.format(sys.platform))
+        "Sorry no implementation for your platform ({}) available.".format(sys.platform)
+    )
 
 
 class MMCterm(object):
@@ -364,7 +379,7 @@ class MMCterm(object):
     def _start_reader(self):
         """Start reader thread"""
         self._reader_alive = True
-        self.receiver_thread = threading.Thread(target=self.reader, name='rx')
+        self.receiver_thread = threading.Thread(target=self.reader, name="rx")
         self.receiver_thread.daemon = True
         self.receiver_thread.start()
 
@@ -377,8 +392,7 @@ class MMCterm(object):
         """start worker threads"""
         self.alive = True
         self._start_reader()
-        self.transmitter_thread = threading.Thread(
-            target=self.writer, name='tx')
+        self.transmitter_thread = threading.Thread(target=self.writer, name="tx")
         self.transmitter_thread.daemon = True
         self.transmitter_thread.start()
         self.console.setup()
@@ -398,13 +412,13 @@ class MMCterm(object):
         self.console.cancel()
 
     def reader(self):
-        '''
+        """
         IPMI communication thread
         send input from console to MMC "stdin", return MMC "stdout" data to print on the console
-        '''
-        rx_data = b''
+        """
+        rx_data = b""
         while self.alive and self._reader_alive:
-            tx_data = b''
+            tx_data = b""
 
             # Check for user input from console
             with self.queue_lock:
@@ -417,12 +431,15 @@ class MMCterm(object):
                 time.sleep(self.polling_interval)
 
             while True:
-                tx_part, tx_data = tx_data[:IPMB_MAX_PAYLOAD_LEN], tx_data[IPMB_MAX_PAYLOAD_LEN:]
+                tx_part, tx_data = (
+                    tx_data[:IPMB_MAX_PAYLOAD_LEN],
+                    tx_data[IPMB_MAX_PAYLOAD_LEN:],
+                )
                 # write user input to MMC, fetch MMC output to print
                 try:
                     status, rx_data = self.ipmi.poll_xchg(bytearray(tx_part))
                 except Exception as e:
-                    self.reader_abort(f'pyipmi exception: {e}')
+                    self.reader_abort(f"pyipmi exception: {e}")
                     return
 
                 if len(rx_data):
@@ -431,9 +448,8 @@ class MMCterm(object):
                     self.retries -= 1
                     # NAT MCH sometimes sends 0xd3 ("Destination unavailable")
                     # Ignore it and retry if it doesn't happen N times in a row
-                    if status != 0xd3 or not self.retries:
-                        self.reader_abort(
-                            f'Status error: {status:02x}, giving up')
+                    if status != 0xD3 or not self.retries:
+                        self.reader_abort(f"Status error: {status:02x}, giving up")
 
                 else:
                     self.retries = MMCterm.STATUS_ERROR_RETRIES
@@ -442,16 +458,16 @@ class MMCterm(object):
                     break
 
     def writer(self):
-        '''
+        """
         Console thread
         Append console data to the queue, exit if exit_character key is pressed
-        '''
+        """
         try:
             while self.alive:
                 try:
                     c = self.console.getkey()
                 except KeyboardInterrupt:
-                    c = '\x03'
+                    c = "\x03"
                 if not self.alive:
                     break
                 elif c == self.exit_character:
@@ -459,8 +475,7 @@ class MMCterm(object):
                     break
                 else:
                     with self.queue_lock:
-                        self.console_queue += c.replace('\n',
-                                                        '\r').encode('utf-8')
+                        self.console_queue += c.replace("\n", "\r").encode("utf-8")
         except:
             self.alive = False
             raise
@@ -468,48 +483,43 @@ class MMCterm(object):
 
 def main():
     # example: ./mmcterm.py 0x74 -m 192.168.1.252
-    parser = argparse.ArgumentParser(
-        description='DESY MMC Serial over IPMB console'
+    parser = argparse.ArgumentParser(description="DESY MMC Serial over IPMB console")
+    parser.add_argument("mch_addr", type=str, help="IP address or hostname of MCH")
+    parser.add_argument(
+        "mmc_addr",
+        type=lambda s: 0x70 + 2 * int(s[3:], 0) if s.find("AMC") == 0 else int(s, 0),
+        help='IPMB-L address of MMC or "AMCn" (n=1..12)',
     )
-    parser.add_argument('mch_addr',
-                        type=str,
-                        help='IP address or hostname of MCH'
-                        )
-    parser.add_argument('mmc_addr',
-                        type=lambda s: 0x70 + 2*int(s[3:], 0) if s.find("AMC") == 0 else int(s, 0),
-                        help='IPMB-L address of MMC or "AMCn" (n=1..12)'
-                        )
-    parser.add_argument('-v', '--version',
-                        action='version',
-                        version='%(prog)s ' + __version__
-                        )
-    parser.add_argument('-c', '--channel',
-                        type=int,
-                        default=0,
-                        help='console channel (default 0)'
-                        )
-    parser.add_argument('-t', '--interval',
-                        type=int,
-                        default=10,
-                        help='polling interval in ms (default 10)'
-                        )
-    parser.add_argument('-l', '--list',
-                        action='store_true',
-                        help='list available channels'
-                        )
-    parser.add_argument('-d', '--debug',
-                        action='store_true',
-                        help='pyipmi debug mode'
-                        )
-    parser.add_argument('-i', '--ipmitool',
-                        action='store_true',
-                        help='make pyipmi use ipmitool instead of native rmcp'
-                        )
-    parser.add_argument('-m', '--max-pkt-size',
-                        type=int,
-                        help='max IPMB packet size to use'
-                        ' (Higher numbers give better performance, but can break depending on MCH model)'
-                        )
+    parser.add_argument(
+        "-v", "--version", action="version", version="%(prog)s " + __version__
+    )
+    parser.add_argument(
+        "-c", "--channel", type=int, default=0, help="console channel (default 0)"
+    )
+    parser.add_argument(
+        "-t",
+        "--interval",
+        type=int,
+        default=10,
+        help="polling interval in ms (default 10)",
+    )
+    parser.add_argument(
+        "-l", "--list", action="store_true", help="list available channels"
+    )
+    parser.add_argument("-d", "--debug", action="store_true", help="pyipmi debug mode")
+    parser.add_argument(
+        "-i",
+        "--ipmitool",
+        action="store_true",
+        help="make pyipmi use ipmitool instead of native rmcp",
+    )
+    parser.add_argument(
+        "-m",
+        "--max-pkt-size",
+        type=int,
+        help="max IPMB packet size to use"
+        " (Higher numbers give better performance, but can break depending on MCH model)",
+    )
     args = parser.parse_args()
 
     if args.debug:
@@ -517,8 +527,7 @@ def main():
         pyipmi.logger.add_log_handler(logging.StreamHandler())
 
     try:
-        conn = IpmiConn(args.mmc_addr, args.mch_addr,
-                        ipmitool_mode=args.ipmitool)
+        conn = IpmiConn(args.mmc_addr, args.mch_addr, ipmitool_mode=args.ipmitool)
     except Exception as e:
         print(e)
         sys.exit(1)
@@ -526,15 +535,15 @@ def main():
     if args.list:
         lst = conn.channel_list()
         if not len(lst):
-            print('Could not read channel list')
+            print("Could not read channel list")
             sys.exit(-1)
 
         for l in lst:
-            print(f'channel {l[0]}: {l[1]}')
+            print(f"channel {l[0]}: {l[1]}")
         sys.exit(0)
 
     if not conn.session_ctrl(args.channel, True, args.max_pkt_size):
-        print(f'Could not open session for channel {args.channel}')
+        print(f"Could not open session for channel {args.channel}")
         sys.exit(-1)
 
     mmcterm = MMCterm(conn, args.max_pkt_size, args.interval)
@@ -550,5 +559,5 @@ def main():
     conn.session_ctrl(args.channel, False)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
