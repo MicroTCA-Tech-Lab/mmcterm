@@ -42,18 +42,32 @@ class IpmiCode(Enum):
 class IpmiConn:
     def __init__(self, mmc_addr, mch_url, ipmitool_mode=False):
         if ipmitool_mode:
-            self.interface = pyipmi.interfaces.create_interface(
+            interface = pyipmi.interfaces.create_interface(
                 "ipmitool", interface_type="lan"
             )
         else:
-            self.interface = pyipmi.interfaces.create_interface(
+            interface = pyipmi.interfaces.create_interface(
                 "rmcp", keep_alive_interval=0
             )
-        self.conn = self.mtca_mch_bridge_amc(mch_url, mmc_addr)
+
+        session, target = self.mtca_mch_bridge_amc(mch_url, mmc_addr)
+
+        try:
+            self.ipmi = pyipmi.Ipmi(interface, target, session)
+            self.ipmi.open()
+        except Exception as e:
+            raise RuntimeError(f"Couldn't connect to MCH {mch_url}: {e}")
+
+        if interface.NAME == "rmcp":
+            # only rmcp interface supports setting timeout
+            # and only after the connection has been established
+            interface.set_timeout(0.25)
 
     def __del__(self):
-        if hasattr(self, "conn") and self.conn.session and self.conn.session.activated:
-            self.conn.session.close()
+        try:
+            self.ipmi.close()
+        except AttributeError:
+            pass
 
     """
         From https://github.com/kontron/python-ipmi/blob/master/pyipmi/__init__.py#L111
@@ -85,21 +99,14 @@ class IpmiConn:
             (0x20, amc_mmc_addr, None),
         ]
 
-        conn = pyipmi.create_connection(self.interface)
-        conn.session.set_session_type_rmcp(mch_url)
-        conn.session.set_auth_type_user("", "")
-        if self.interface.NAME == "rmcp":
-            # only rmcp interface supports setting timeout
-            conn.interface.set_timeout(0.25)
-        try:
-            conn.session.establish()
-        except Exception as e:
-            raise RuntimeError(f"Couldn't connect to MCH {mch_url}: {e}")
+        session = pyipmi.Session()
+        session.set_session_type_rmcp(mch_url)
+        session.set_auth_type_user("", "")
 
-        conn.target = pyipmi.Target(
+        target = pyipmi.Target(
             ipmb_address=amc_mmc_addr, routing=mtca_amc_double_bridge
         )
-        return conn
+        return session, target
 
     def raw_cmd(self, cmd_code, cmd_data=None):
         """
@@ -112,7 +119,7 @@ class IpmiConn:
             else:
                 data += cmd_data
 
-        raw_reply = self.conn.raw_command(0, 0x30, data)
+        raw_reply = self.ipmi.raw_command(0, 0x30, data)
         return raw_reply[0], raw_reply[1:]
 
     def channel_list(self):
