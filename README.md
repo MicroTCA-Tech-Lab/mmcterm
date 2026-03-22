@@ -11,7 +11,7 @@ pip3 install mmcterm
 ## Usage
 
 ```
-mmcterm [-h] [-v] [-c CHANNEL] [-t INTERVAL] [-l] [-d] [-i] [-m MAX_PKT_SIZE] mch_addr mmc_addr
+mmcterm [-h] [-v] [-c CHANNEL] [-t INTERVAL] [-l] [-d] [-i] [-m MAX_PKT_SIZE] [--vadatech-quirk] mch_addr mmc_addr
 
 DESY MMC Serial over IPMB console
 
@@ -19,7 +19,7 @@ positional arguments:
   mch_addr              IP address or hostname of MCH
   mmc_addr              IPMB-L address of MMC or "AMCn" (n=1..12)
 
-optional arguments:
+options:
   -h, --help            show this help message and exit
   -v, --version         show program's version number and exit
   -c CHANNEL, --channel CHANNEL
@@ -31,6 +31,7 @@ optional arguments:
   -i, --ipmitool        make pyipmi use ipmitool instead of native rmcp
   -m MAX_PKT_SIZE, --max-pkt-size MAX_PKT_SIZE
                         max IPMB packet size to use (Higher numbers give better performance, but can break depending on MCH model)
+  --vadatech-quirk      Enable ipmi library quirk for Vadatech support (ignore req seq numbers)
 ```
 
 ## Channels

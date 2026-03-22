@@ -40,14 +40,20 @@ class IpmiCode(Enum):
 
 
 class IpmiConn:
-    def __init__(self, mmc_addr, mch_url, ipmitool_mode=False):
+    def __init__(self, mmc_addr, mch_url, ipmitool_mode=False, vadatech_quirk=False):
         if ipmitool_mode:
             interface = pyipmi.interfaces.create_interface(
                 "ipmitool", interface_type="lan"
             )
         else:
+            quirks_cfg = {}
+            if vadatech_quirk:
+                # Vadatech MCH is changing request sequence numbers on-the-fly,
+                # we need to let the ipmi library know to ignore the sequence numbers
+                quirks_cfg["rmcp_ignore_rq_seq"] = True
+
             interface = pyipmi.interfaces.create_interface(
-                "rmcp", keep_alive_interval=0
+                "rmcp", keep_alive_interval=0, quirks_cfg=quirks_cfg
             )
 
         session, target = self.mtca_mch_bridge_amc(mch_url, mmc_addr)
@@ -527,6 +533,11 @@ def main():
         help="max IPMB packet size to use"
         " (Higher numbers give better performance, but can break depending on MCH model)",
     )
+    parser.add_argument(
+        "--vadatech-quirk",
+        action="store_true",
+        help="Enable ipmi library quirk for Vadatech support (ignore req seq numbers)",
+    )
     args = parser.parse_args()
 
     if args.debug:
@@ -534,7 +545,7 @@ def main():
         pyipmi.logger.add_log_handler(logging.StreamHandler())
 
     try:
-        conn = IpmiConn(args.mmc_addr, args.mch_addr, ipmitool_mode=args.ipmitool)
+        conn = IpmiConn(args.mmc_addr, args.mch_addr, ipmitool_mode=args.ipmitool, vadatech_quirk=args.vadatech_quirk)
     except Exception as e:
         print(e)
         sys.exit(1)
